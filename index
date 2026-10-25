@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Шаги и заметки VK</title>
+    <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
+    <style>
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0; padding: 0;
+            background: var(--bg-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+            color: #fff; min-height: 100vh;
+            display: flex; flex-direction: column;
+            transition: background 0.3s;
+        }
+        body[data-theme="purple"] { --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        body[data-theme="blue"]   { --bg-gradient: linear-gradient(135deg, #2196f3 0%, #0d47a1 100%); }
+        body[data-theme="green"]  { --bg-gradient: linear-gradient(135deg, #4caf50 0%, #1b5e20 100%); }
+        body[data-theme="dark"]   { --bg-gradient: linear-gradient(135deg, #232526 0%, #0f0f10 100%); }
+
+        .tabs { display: flex; justify-content: space-around; padding: 8px 8px 0; margin: 0 auto 12px; width: 100%; max-width: 440px; }
+        .tab { padding: 8px 4px; cursor: pointer; border-radius: 10px; opacity: 0.7; font-size: 11px; flex: 1; text-align: center; transition: 0.15s; user-select: none; }
+        .tab.active { background: rgba(255,255,255,0.2); opacity: 1; font-weight: 600; }
+        .tab:hover { opacity: 1; }
+
+        .tab-content { display: none; width: 100%; max-width: 440px; margin: 0 auto; padding: 0 16px 24px; }
+        .tab-content.active { display: block; }
+
+        .card {
+            background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px);
+            border-radius: 24px; padding: 24px 18px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-sizing: border-box;
+        }
+
+        .big-number { font-size: 64px; font-weight: 700; line-height: 1; text-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+        .big-label { font-size: 15px; opacity: 0.8; margin: 4px 0 4px; }
+        .mode-breakdown { font-size: 12px; opacity: 0.7; margin-bottom: 10px; }
+        .status-badge { display: inline-block; background: rgba(255,255,255,0.2); padding: 6px 16px; border-radius: 20px; font-size: 13px; margin-bottom: 12px; }
+
+        .mode-switch { display: flex; background: rgba(255,255,255,0.15); border-radius: 20px; padding: 3px; margin: 8px 0 4px; }
+        .mode-btn { flex: 1; padding: 8px; border-radius: 17px; cursor: pointer; font-size: 13px; opacity: 0.7; transition: 0.2s; text-align: center; }
+        .mode-btn.active { background: #fff; color: #333; opacity: 1; font-weight: 600; }
+
+        .profile-line { font-size: 12px; opacity: 0.7; margin: 10px 0; cursor: pointer; }
+        .profile-line:hover { opacity: 1; }
+        .status { font-size: 13px; opacity: 0.7; margin: 14px 0 12px; min-height: 18px; }
+
+        .btn { background: #fff; color: #333; border: none; padding: 13px 26px; font-size: 15px; font-weight: 600; border-radius: 50px; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; box-shadow: 0 4px 15px rgba(0,0,0,0.2); margin: 4px; display: inline-block; }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.3); }
+        .btn:active { transform: translateY(0); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .btn-secondary { background: rgba(255,255,255,0.2); color: #fff; box-shadow: none; border: 1px solid rgba(255,255,255,0.3); }
+        .btn-secondary:hover { background: rgba(255,255,255,0.3); }
+
+        .stats-grid, .week-summary { display: flex; justify-content: space-around; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.15); }
+        .stat-item { flex: 1; }
+        .stat-value { font-size: 22px; font-weight: 700; }
+        .stat-label { font-size: 11px; opacity: 0.7; margin-top: 2px; }
+
+        .goal-wrap { margin: 14px 0 6px; }
+        .goal-head { display: flex; justify-content: space-between; font-size: 12px; opacity: 0.85; margin-bottom: 6px; }
+        .goal-bar { height: 10px; background: rgba(255,255,255,0.2); border-radius: 10px; overflow: hidden; }
+        .goal-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #fff 0%, #e0e0e0 100%); border-radius: 10px; transition: width 0.4s ease; }
+        .goal-fill.complete { background: linear-gradient(90deg, #ffd54f 0%, #ffb300 100%); }
+        .goal-complete-text { font-size: 12px; margin-top: 6px; color: #ffd54f; font-weight: 600; min-height: 16px; }
+
+        .chart { display: flex; align-items: flex-end; justify-content: space-between; gap: 6px; height: 160px; padding-top: 10px; }
+        .chart-bar-wrapper { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
+        .chart-value { font-size: 10px; opacity: 0.85; margin-bottom: 3px; height: 14px; }
+        .chart-bar { width: 100%; background: linear-gradient(180deg, #ffffff 0%, rgba(255,255,255,0.6) 100%); border-radius: 6px 6px 2px 2px; min-height: 3px; transition: height 0.4s ease; }
+        .chart-bar.today { background: linear-gradient(180deg, #ffd54f 0%, #ffb300 100%); }
+        .chart-label { font-size: 10px; margin-top: 6px; opacity: 0.75; }
+        h2 { margin: 8px 0 4px; font-size: 20px; }
+
+        .ach-cat { margin-bottom: 16px; text-align: left; }
+        .ach-cat-title { font-size: 13px; opacity: 0.9; margin-bottom: 8px; padding-left: 4px; font-weight: 600; }
+        .ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px; }
+        .ach-card { background: rgba(255,255,255,0.08); border-radius: 10px; padding: 8px 4px; border: 2px solid transparent; position: relative; overflow: hidden; }
+        .ach-card.locked { opacity: 0.45; }
+        .ach-card.unlocked.rarity-bronze { border-color: #cd7f32; background: rgba(205,127,50,0.15); }
+        .ach-card.unlocked.rarity-silver { border-color: #c0c0c0; background: rgba(192,192,192,0.15); }
+        .ach-card.unlocked.rarity-gold { border-color: #ffd700; background: rgba(255,215,0,0.15); }
+        .ach-card.unlocked.rarity-platinum { border-color: #7fffd4; background: rgba(127,255,212,0.15); }
+        .ach-card.unlocked.rarity-diamond { border-color: #b9f2ff; background: rgba(185,242,255,0.2); }
+        .ach-icon { font-size: 22px; line-height: 1; margin-bottom: 3px; }
+        .ach-name { font-size: 9px; line-height: 1.2; opacity: 0.9; height: 22px; overflow: hidden; }
+        .ach-progress { height: 3px; background: rgba(255,255,255,0.15); border-radius: 3px; margin-top: 4px; overflow: hidden; }
+        .ach-progress-fill { height: 100%; background: rgba(255,255,255,0.7); border-radius: 3px; }
+        .ach-card.unlocked .ach-progress-fill { background: #fff; }
+
+        .notes-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 8px; }
+        .notes-title { font-size: 22px; font-weight: 700; flex: 1; }
+        .notes-title .count { font-size: 13px; opacity: 0.65; font-weight: 400; margin-left: 4px; }
+        .header-actions { display: flex; gap: 6px; }
+        .header-btn { background: rgba(255,255,255,0.15); border: none; color: #fff; width: 36px; height: 36px; border-radius: 10px; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.15s; }
+        .header-btn:hover { background: rgba(255,255,255,0.28); }
+
+        .search { width: 100%; padding: 12px 14px; border-radius: 12px; border: none; font-size: 15px; background: rgba(255,255,255,0.15); color: #fff; margin-bottom: 10px; outline: none; box-sizing: border-box; }
+        .search::placeholder { color: rgba(255,255,255,0.6); }
+
+        .tag-filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+        .tag-chip { padding: 5px 12px; background: rgba(255,255,255,0.15); border-radius: 20px; font-size: 12px; cursor: pointer; transition: 0.15s; border: 1px solid rgba(255,255,255,0.1); }
+        .tag-chip.active { background: #fff; color: #333; font-weight: 600; }
+
+        .notes-list { display: flex; flex-direction: column; gap: 10px; padding-bottom: 80px; }
+        .note-card { background: rgba(255,255,255,0.1); border-left: 4px solid var(--note-color, #fff); border-radius: 12px; padding: 12px 14px; cursor: pointer; transition: 0.15s; display: flex; flex-direction: column; gap: 4px; text-align: left; }
+        .note-card:hover { background: rgba(255,255,255,0.18); }
+        .note-card.pinned { background: rgba(255,215,0,0.08); }
+        .note-title { font-size: 15px; font-weight: 600; word-break: break-word; }
+        .note-title .pin { font-size: 12px; margin-left: 4px; }
+        .note-preview { font-size: 13px; opacity: 0.7; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.4; }
+        .note-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+        .note-tag { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: rgba(255,255,255,0.15); opacity: 0.85; }
+        .note-date { font-size: 10px; opacity: 0.45; margin-top: 2px; }
+
+        .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; opacity: 0.5; font-size: 16px; line-height: 1.6; padding: 40px 20px; }
+
+        .fab { position: fixed; bottom: 20px; right: calc(50% - 220px + 20px); width: 56px; height: 56px; border-radius: 28px; border: none; background: #fff; color: #333; font-size: 32px; font-weight: 700; box-shadow: 0 6px 20px rgba(0,0,0,0.3); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform 0.15s; }
+        .fab:hover { transform: scale(1.05); }
+        .fab:active { transform: scale(0.95); }
+        @media (max-width: 480px) { .fab { right: 20px; } }
+
+        .notes-editor-overlay { display: none; position: fixed; inset: 0; z-index: 500; background: var(--bg-gradient); padding: 16px; overflow-y: auto; flex-direction: column; }
+        .notes-editor-overlay.active { display: flex; }
+        .editor-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+        .icon-btn { background: rgba(255,255,255,0.15); border: none; color: #fff; width: 38px; height: 38px; border-radius: 12px; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.15s; flex-shrink: 0; }
+        .icon-btn:hover { background: rgba(255,255,255,0.25); }
+        .icon-btn.danger:hover { background: rgba(255,80,80,0.4); }
+        .save-status { flex: 1; font-size: 12px; opacity: 0.7; text-align: center; }
+        .save-status.saving { color: #ffd54f; }
+        .save-status.error { color: #ff8a80; }
+
+        .color-picker { display: flex; gap: 8px; margin-bottom: 12px; }
+        .color-dot { width: 32px; height: 32px; border-radius: 16px; cursor: pointer; border: 3px solid transparent; transition: 0.15s; }
+        .color-dot.active { border-color: #fff; transform: scale(1.1); }
+
+        .pin-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: rgba(255,255,255,0.15); border-radius: 20px; font-size: 13px; cursor: pointer; margin-bottom: 14px; user-select: none; transition: 0.15s; width: fit-content; }
+        .pin-toggle.active { background: rgba(255,215,0,0.3); border: 1px solid rgba(255,215,0,0.5); }
+
+        .edit-title { width: 100%; background: transparent; border: none; color: #fff; font-size: 22px; font-weight: 700; padding: 4px 0; margin-bottom: 8px; outline: none; }
+        .edit-title::placeholder { color: rgba(255,255,255,0.4); }
+
+        .edit-body { width: 100%; min-height: 240px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; color: #fff; font-size: 15px; line-height: 1.5; padding: 12px; resize: vertical; outline: none; font-family: inherit; box-sizing: border-box; }
+        .edit-body::placeholder { color: rgba(255,255,255,0.4); }
+
+        .body-counter { font-size: 11px; opacity: 0.55; text-align: right; margin: 4px 2px 0; }
+
+        .edit-tags { width: 100%; margin-top: 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.08); color: #fff; font-size: 13px; outline: none; box-sizing: border-box; }
+        .edit-tags::placeholder { color: rgba(255,255,255,0.4); }
+
+        .toast { position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%); background: rgba(30,30,40,0.95); color: #fff; padding: 12px 18px; border-radius: 12px; font-size: 13px; text-align: center; z-index: 2000; transition: bottom 0.3s ease; max-width: 90%; box-shadow: 0 10px 30px rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.15); }
+        .toast.show { bottom: 20px; }
+
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); align-items: center; justify-content: center; z-index: 1000; padding: 20px; box-sizing: border-box; overflow-y: auto; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: var(--bg-gradient); border-radius: 20px; padding: 24px; max-width: 340px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.2); margin: auto; }
+        .modal h3 { margin: 0 0 4px; font-size: 18px; }
+        .modal label.plain { display: block; font-size: 13px; margin: 14px 0 6px; opacity: 0.85; text-align: left; }
+        .modal input[type="number"] { width: 100%; padding: 10px 12px; border-radius: 10px; border: none; font-size: 15px; box-sizing: border-box; background: rgba(255,255,255,0.9); color: #333; }
+        .radio-group { display: flex; gap: 6px; }
+        .radio-group label { display: flex; align-items: center; gap: 4px; padding: 8px 4px; background: rgba(255,255,255,0.15); border-radius: 10px; margin: 0; cursor: pointer; flex: 1; justify-content: center; font-size: 12px; }
+        .radio-group label.checked { background: rgba(255,255,255,0.35); }
+        .radio-group input { margin: 0; display: none; }
+        .modal-buttons { display: flex; gap: 8px; margin-top: 20px; }
+        .modal-buttons .btn { flex: 1; padding: 12px; font-size: 14px; }
+    </style>
+</head>
+<body data-theme="purple">
+
+    <div class="tabs">
+        <div class="tab active" data-tab="steps" onclick="switchTab('steps')">👣 Шаги</div>
+        <div class="tab" data-tab="stats" onclick="switchTab('stats')">📊 Стата</div>
+        <div class="tab" data-tab="tournament" onclick="switchTab('tournament')">🏆 Турнир</div>
+        <div class="tab" data-tab="achievements" onclick="switchTab('achievements')">🏅 Кубки</div>
+        <div class="tab" data-tab="notes" onclick="switchTab('notes')">📝 Заметки</div>
+        <div class="tab" onclick="openSettings()">⚙️</div>
+    </div>
+
+    <div id="tab-steps" class="tab-content active">
+        <div class="card">
+            <div class="status-badge" id="statusBadge">Новичок</div>
+            <div class="big-number" id="todaySteps">0</div>
+            <div class="big-label">шагов сегодня</div>
+            <div class="mode-breakdown" id="modeBreakdown">🚶 0 · 🏃 0</div>
+            <div class="mode-switch">
+                <div class="mode-btn active" data-mode="walk" onclick="setMode('walk')">🚶 Ходьба</div>
+                <div class="mode-btn" data-mode="run" onclick="setMode('run')">🏃 Бег</div>
+            </div>
+            <div class="goal-wrap">
+                <div class="goal-head"><span id="goalLabel">Цель: 10 000</span><span id="goalPercent">0%</span></div>
+                <div class="goal-bar"><div class="goal-fill" id="goalFill"></div></div>
+                <div class="goal-complete-text" id="goalCompleteText"></div>
+            </div>
+            <div class="profile-line" id="profileLine" onclick="openSettings()"></div>
+            <div class="stats-grid">
+                <div class="stat-item"><div class="stat-value" id="totalSteps">0</div><div class="stat-label">всего шагов</div></div>
+                <div class="stat-item"><div class="stat-value" id="todayCalories">0</div><div class="stat-label">ккал сегодня</div></div>
+                <div class="stat-item"><div class="stat-value" id="todayDistance">0.00</div><div class="stat-label">км сегодня</div></div>
+            </div>
+            <div class="status" id="status">Нажмите «Старт», чтобы начать</div>
+            <button class="btn" id="startBtn" onclick="toggleTracking()">Старт</button>
+            <button class="btn btn-secondary" onclick="showRewardedAd()">🎁 Бонус</button>
+        </div>
+    </div>
+
+    <div id="tab-stats" class="tab-content">
+        <div class="card">
+            <h2>📊 За неделю</h2>
+            <div class="week-summary">
+                <div class="stat-item"><div class="stat-value" id="weekTotal">0</div><div class="stat-label">шагов</div></div>
+                <div class="stat-item"><div class="stat-value" id="weekCalories">0</div><div class="stat-label">ккал</div></div>
+                <div class="stat-item"><div class="stat-value" id="weekDistance">0.0</div><div class="stat-label">км</div></div>
+            </div>
+            <div class="mode-breakdown" id="weekBreakdown" style="margin-top:8px;">🚶 0 · 🏃 0</div>
+            <div class="chart" id="weeklyChart"></div>
+        </div>
+    </div>
+
+    <div id="tab-tournament" class="tab-content">
+        <div class="card">
+            <h2>🏆 Турнир друзей</h2>
+            <p style="opacity: 0.8; margin-bottom: 16px; font-size: 14px;">Соревнуйтесь с друзьями по количеству шагов!</p>
+            <button class="btn" onclick="showLeaderboard()">Посмотреть рейтинг</button>
+            <p style="font-size: 11px; opacity: 0.6; margin-top: 16px;">Работает после включения «Таблицы результатов» в настройках приложения.</p>
+        </div>
+    </div>
+
+    <div id="tab-achievements" class="tab-content">
+        <div class="card">
+            <h2>🏅 Ваши награды</h2>
+            <div id="achievementsContainer"></div>
+        </div>
+    </div>
+
+    <div id="tab-notes" class="tab-content">
+        <div class="notes-header">
+            <div class="notes-title">📝 Заметки <span class="count" id="noteCount">0</span></div>
+            <div class="header-actions">
+                <button class="header-btn" onclick="exportAllNotes()" title="Экспорт в буфер">📤</button>
+            </div>
+        </div>
+        <input id="searchInput" class="search" placeholder="🔍 Поиск..." oninput="renderNotesList()">
+        <div id="tagFilters" class="tag-filters"></div>
+        <div id="notesList" class="notes-list"></div>
+        <div id="emptyState" class="empty" style="display:none;">
+            📭<br>Пока пусто<br><br>Нажмите <b>+</b>, чтобы создать первую заметку
+        </div>
+        <button class="fab" onclick="createNote()">+</button>
+    </div>
+
+    <div id="notesEditorOverlay" class="notes-editor-overlay">
+        <div class="editor-header">
+            <button class="icon-btn" onclick="closeNoteEditor()">←</button>
+            <div class="save-status" id="saveStatus"></div>
+            <button class="icon-btn danger" onclick="deleteCurrentNote()">🗑️</button>
+        </div>
+        <div class="color-picker" id="colorPicker"></div>
+        <div class="pin-toggle" id="pinToggle" onclick="togglePin()">
+            <span>📌</span><span id="pinLabel">Закрепить</span>
+        </div>
+        <input id="editTitle" class="edit-title" placeholder="Заголовок" oninput="scheduleNoteSave()">
+        <textarea id="editBody" class="edit-body" placeholder="Текст заметки..." oninput="onBodyInput()"></textarea>
+        <div class="body-counter" id="bodyCounter">0 слов · 0 символов</div>
+        <input id="editTags" class="edit-tags" placeholder="Теги через запятую" oninput="scheduleNoteSave()">
+    </div>
+
+    <div class="modal-overlay" id="settingsModal" onclick="if(event.target===this)closeSettings()">
+        <div class="modal">
+            <h3>⚙️ Настройки</h3>
+            <label class="plain">Пол</label>
+            <div class="radio-group" id="genderGroup">
+                <label data-value="male"><input type="radio" name="gender" value="male"> 👨 Мужской</label>
+                <label data-value="female"><input type="radio" name="gender" value="female"> 👩 Женский</label>
+            </div>
+            <label class="plain" for="inputHeight">Рост, см</label>
+            <input type="number" id="inputHeight" min="100" max="250" step="1">
+            <label class="plain" for="inputWeight">Вес, кг</label>
+            <input type="number" id="inputWeight" min="30" max="300" step="1">
+            <label class="plain">Темп</label>
+            <div class="radio-group" id="paceGroup">
+                <label data-value="slow"><input type="radio" name="pace" value="slow"> 🚶 Медл.</label>
+                <label data-value="medium"><input type="radio" name="pace" value="medium"> 🚶‍♂️ Сред.</label>
+                <label data-value="fast"><input type="radio" name="pace" value="fast"> 🏃 Быстр.</label>
+            </div>
+            <label class="plain" for="inputGoal">Цель шагов в день</label>
+            <input type="number" id="inputGoal" min="1000" max="50000" step="500">
+            <label class="plain">Тема</label>
+            <div class="radio-group" id="themeGroup">
+                <label data-value="purple"><input type="radio" name="theme" value="purple"> 🟣</label>
+                <label data-value="blue"><input type="radio" name="theme" value="blue"> 🔵</label>
+                <label data-value="green"><input type="radio" name="theme" value="green"> 🟢</label>
+                <label data-value="dark"><input type="radio" name="theme" value="dark"> ⚫</label>
+            </div>
+            <div class="modal-buttons">
+                <button class="btn btn-secondary" onclick="closeSettings()">Отмена</button>
+                <button class="btn" onclick="saveSettings()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // ============================================================
+        // 1. VK Bridge
+        // ============================================================
+        vkBridge.send('VKWebAppInit');
+
+        // ============================================================
+        // 2. Константы
+        // ============================================================
+        const STATE_KEY = 'stepCounterStateV2';
+        const INDEX_KEY = 'notesIndex';
+        const NOTE_PREFIX = 'note_';
+        const HISTORY_DAYS = 30;
+        const REWARD_STEPS = 500;
+        const MAX_NOTE_BYTES = 3800;
+        const AUTOSAVE_DELAY = 800;
+
+        const DEFAULT_SETTINGS = {
+            gender: 'male', height: 170, weight: 70,
+            pace: 'medium', dailyGoal: 10000,
+            mode: 'walk', theme: 'purple'
+        };
+
+        const STRIDE_COEF = { walk: { male: 0.415, female: 0.413 }, run: { male: 0.65, female: 0.63 } };
+        const KCAL_COEF   = { walk: { male: 0.6,   female: 0.55  }, run: { male: 1.05, female: 0.95 } };
+        const PACE_FACTOR = { slow: 0.85, medium: 1.0, fast: 1.2 };
+        const PACE_LABEL  = { slow: 'медленный', medium: 'средний', fast: 'быстрый' };
+        const STEP_THRESHOLD    = { walk: 12, run: 18 };
+        const MIN_STEP_INTERVAL = { walk: 300, run: 200 };
+
+        const PALETTE = [
+            { id: 'yellow', color: '#fbc02d' }, { id: 'pink',  color: '#e57373' },
+            { id: 'blue',   color: '#64b5f6' }, { id: 'green', color: '#81c784' },
+            { id: 'purple', color: '#ba68c8' }, { id: 'gray',  color: '#90a4ae' }
+        ];
+
+        // ============================================================
+        // 3. Состояние
+        // ============================================================
+        let state = {
+            totalWalk: 0, totalRun: 0, totalDistance: 0, totalCalories: 0,
+            history: {}, settings: { ...DEFAULT_SETTINGS },
+            unlocked: [], goalDaysTotal: 0, streak: 0, lastGoalDate: null
+        };
+        let isTracking = false;
+        let lastStepTime = 0;
+        let unsubscribeAccel = null;
+        let stepSaveTimer = null;
+
+        let notes = {};
+        let currentNote = null;
+        let isNewNote = false;
+        let activeTagFilter = null;
+        let noteSaveTimer = null;
+        let noteSaveInFlight = false;
+
+        // ============================================================
+        // 4. DOM
+        // ============================================================
+        const $ = id => document.getElementById(id);
+        const todayStepsEl = $('todaySteps');
+        const totalStepsEl = $('totalSteps');
+        const todayCaloriesEl = $('todayCalories');
+        const todayDistanceEl = $('todayDistance');
+        const statusEl = $('status');
+        const startBtn = $('startBtn');
+        const statusBadgeEl = $('statusBadge');
+        const profileLineEl = $('profileLine');
+        const modeBreakdownEl = $('modeBreakdown');
+        const achievementsContainer = $('achievementsContainer');
+        const weeklyChartEl = $('weeklyChart');
+        const weekTotalEl = $('weekTotal');
+        const weekCaloriesEl = $('weekCalories');
+        const weekDistanceEl = $('weekDistance');
+        const weekBreakdownEl = $('weekBreakdown');
+        const goalLabelEl = $('goalLabel');
+        const goalPercentEl = $('goalPercent');
+        const goalFillEl = $('goalFill');
+        const goalCompleteTextEl = $('goalCompleteText');
+
+        const notesListEl = $('notesList');
+        const emptyStateEl = $('emptyState');
+        const noteCountEl = $('noteCount');
+        const tagFiltersEl = $('tagFilters');
+        const searchInput = $('searchInput');
+        const saveStatusEl = $('saveStatus');
+        const colorPickerEl = $('colorPicker');
+        const pinToggleEl = $('pinToggle');
+        const pinLabelEl = $('pinLabel');
+        const editTitle = $('editTitle');
+        const editBody = $('editBody');
+        const editTags = $('editTags');
+        const bodyCounterEl = $('bodyCounter');
+        const notesEditorOverlay = $('notesEditorOverlay');
+        const toastEl = $('toast');
+
+        // ============================================================
+        // 5. Достижения и статусы
+        // ============================================================
+        const ACHIEVEMENTS = [
+            { id: 'steps_100', cat: '👣 Шаги всего', name: 'Первый шаг', icon: '👣', rarity: 'bronze', metric: 'totalSteps', target: 100 },
+            { id: 'steps_500', cat: '👣 Шаги всего', name: 'Разминка', icon: '👟', rarity: 'bronze', metric: 'totalSteps', target: 500 },
+            { id: 'steps_1000', cat: '👣 Шаги всего', name: 'Тысячник', icon: '🚶', rarity: 'bronze', metric: 'totalSteps', target: 1000 },
+            { id: 'steps_2500', cat: '👣 Шаги всего', name: 'Прогулка', icon: '🚶‍♂️', rarity: 'silver', metric: 'totalSteps', target: 2500 },
+            { id: 'steps_5000', cat: '👣 Шаги всего', name: 'Пятитысячник', icon: '🚶‍♀️', rarity: 'silver', metric: 'totalSteps', target: 5000 },
+            { id: 'steps_10000', cat: '👣 Шаги всего', name: 'Десятка', icon: '🥾', rarity: 'silver', metric: 'totalSteps', target: 10000 },
+            { id: 'steps_25000', cat: '👣 Шаги всего', name: 'Ходок', icon: '🏅', rarity: 'gold', metric: 'totalSteps', target: 25000 },
+            { id: 'steps_50000', cat: '👣 Шаги всего', name: 'Марафонец', icon: '🎖️', rarity: 'gold', metric: 'totalSteps', target: 50000 },
+            { id: 'steps_100000', cat: '👣 Шаги всего', name: 'Сотка', icon: '🏆', rarity: 'gold', metric: 'totalSteps', target: 100000 },
+            { id: 'steps_250000', cat: '👣 Шаги всего', name: 'Четверть млн', icon: '👑', rarity: 'platinum', metric: 'totalSteps', target: 250000 },
+            { id: 'steps_500000', cat: '👣 Шаги всего', name: 'Полмиллиона', icon: '💎', rarity: 'diamond', metric: 'totalSteps', target: 500000 },
+            { id: 'steps_1000000', cat: '👣 Шаги всего', name: 'Миллионер', icon: '🌟', rarity: 'diamond', metric: 'totalSteps', target: 1000000 },
+            { id: 'run_100', cat: '🏃 Бег', name: 'Первый бег', icon: '🏃', rarity: 'bronze', metric: 'totalRun', target: 100 },
+            { id: 'run_500', cat: '🏃 Бег', name: 'Разбег', icon: '🏃‍♂️', rarity: 'bronze', metric: 'totalRun', target: 500 },
+            { id: 'run_1000', cat: '🏃 Бег', name: 'Километраж', icon: '🏃‍♀️', rarity: 'bronze', metric: 'totalRun', target: 1000 },
+            { id: 'run_5000', cat: '🏃 Бег', name: 'Пятитысячник', icon: '⚡', rarity: 'silver', metric: 'totalRun', target: 5000 },
+            { id: 'run_10000', cat: '🏃 Бег', name: 'Десятка бегом', icon: '🔥', rarity: 'silver', metric: 'totalRun', target: 10000 },
+            { id: 'run_50000', cat: '🏃 Бег', name: 'Полтинник', icon: '🚀', rarity: 'gold', metric: 'totalRun', target: 50000 },
+            { id: 'run_100000', cat: '🏃 Бег', name: 'Сотка бегом', icon: '🌪️', rarity: 'platinum', metric: 'totalRun', target: 100000 },
+            { id: 'run_500000', cat: '🏃 Бег', name: 'Полмиллиона', icon: '🦅', rarity: 'diamond', metric: 'totalRun', target: 500000 },
+            { id: 'kcal_100', cat: '🔥 Калории', name: 'Разогрев', icon: '🔥', rarity: 'bronze', metric: 'totalCalories', target: 100 },
+            { id: 'kcal_500', cat: '🔥 Калории', name: 'Пятьсот', icon: '💥', rarity: 'bronze', metric: 'totalCalories', target: 500 },
+            { id: 'kcal_1000', cat: '🔥 Калории', name: 'Тысяча', icon: '♨️', rarity: 'bronze', metric: 'totalCalories', target: 1000 },
+            { id: 'kcal_5000', cat: '🔥 Калории', name: 'Печка', icon: '🌡️', rarity: 'silver', metric: 'totalCalories', target: 5000 },
+            { id: 'kcal_10000', cat: '🔥 Калории', name: 'Десять тысяч', icon: '☄️', rarity: 'silver', metric: 'totalCalories', target: 10000 },
+            { id: 'kcal_25000', cat: '🔥 Калории', name: 'Двадцать пять', icon: '🌋', rarity: 'gold', metric: 'totalCalories', target: 25000 },
+            { id: 'kcal_50000', cat: '🔥 Калории', name: 'Пятьдесят', icon: '☀️', rarity: 'gold', metric: 'totalCalories', target: 50000 },
+            { id: 'kcal_100000', cat: '🔥 Калории', name: 'Сто тысяч', icon: '🌟', rarity: 'diamond', metric: 'totalCalories', target: 100000 },
+            { id: 'dist_1', cat: '📍 Дистанция', name: '1 км', icon: '📍', rarity: 'bronze', metric: 'totalDistance', target: 1 },
+            { id: 'dist_5', cat: '📍 Дистанция', name: '5 км', icon: '🗺️', rarity: 'bronze', metric: 'totalDistance', target: 5 },
+            { id: 'dist_10', cat: '📍 Дистанция', name: '10 км', icon: '🧭', rarity: 'bronze', metric: 'totalDistance', target: 10 },
+            { id: 'dist_42', cat: '📍 Дистанция', name: 'Марафон', icon: '🏅', rarity: 'silver', metric: 'totalDistance', target: 42 },
+            { id: 'dist_100', cat: '📍 Дистанция', name: '100 км', icon: '🛣️', rarity: 'gold', metric: 'totalDistance', target: 100 },
+            { id: 'dist_500', cat: '📍 Дистанция', name: '500 км', icon: '🌍', rarity: 'platinum', metric: 'totalDistance', target: 500 },
+            { id: 'dist_1000', cat: '📍 Дистанция', name: '1000 км', icon: '🌏', rarity: 'diamond', metric: 'totalDistance', target: 1000 },
+            { id: 'goal_1', cat: '🎯 Дней с целью', name: 'Первый день', icon: '🎯', rarity: 'bronze', metric: 'goalDays', target: 1 },
+            { id: 'goal_3', cat: '🎯 Дней с целью', name: 'Три дня', icon: '🎯', rarity: 'bronze', metric: 'goalDays', target: 3 },
+            { id: 'goal_7', cat: '🎯 Дней с целью', name: 'Неделя', icon: '📅', rarity: 'bronze', metric: 'goalDays', target: 7 },
+            { id: 'goal_14', cat: '🎯 Дней с целью', name: 'Две недели', icon: '🗓️', rarity: 'silver', metric: 'goalDays', target: 14 },
+            { id: 'goal_30', cat: '🎯 Дней с целью', name: 'Месяц', icon: '📆', rarity: 'silver', metric: 'goalDays', target: 30 },
+            { id: 'goal_100', cat: '🎯 Дней с целью', name: 'Сто дней', icon: '🏆', rarity: 'gold', metric: 'goalDays', target: 100 },
+            { id: 'goal_365', cat: '🎯 Дней с целью', name: 'Год', icon: '👑', rarity: 'diamond', metric: 'goalDays', target: 365 },
+            { id: 'streak_3', cat: '⚡ Серия подряд', name: '3 дня', icon: '⚡', rarity: 'bronze', metric: 'streak', target: 3 },
+            { id: 'streak_7', cat: '⚡ Серия подряд', name: '7 дней', icon: '🔥', rarity: 'bronze', metric: 'streak', target: 7 },
+            { id: 'streak_14', cat: '⚡ Серия подряд', name: '14 дней', icon: '💥', rarity: 'silver', metric: 'streak', target: 14 },
+            { id: 'streak_30', cat: '⚡ Серия подряд', name: '30 дней', icon: '🌪️', rarity: 'silver', metric: 'streak', target: 30 },
+            { id: 'streak_100', cat: '⚡ Серия подряд', name: '100 дней', icon: '☄️', rarity: 'gold', metric: 'streak', target: 100 },
+            { id: 'streak_365', cat: '⚡ Серия подряд', name: '365 дней', icon: '🌠', rarity: 'diamond', metric: 'streak', target: 365 }
+        ];
+
+        const STATUSES = [
+            { name: 'Новичок', minSteps: 0 }, { name: 'Ходок', minSteps: 500 },
+            { name: 'Активный', minSteps: 2000 }, { name: 'Спортсмен', minSteps: 5000 },
+            { name: 'Марафонец', minSteps: 10000 }, { name: 'Легенда', minSteps: 50000 },
+            { name: 'Бегун', minSteps: 100000 }
+        ];
+
+        // ============================================================
+        // 6. Утилиты
+        // ============================================================
+        function todayKey() { return dateKey(new Date()); }
+        function dateKey(d) {
+            return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        }
+        function formatNum(n) { return Math.round(n).toLocaleString('ru-RU'); }
+        function todayDay() { return state.history[todayKey()] || { walk: 0, run: 0 }; }
+        function totalSteps() { return state.totalWalk + state.totalRun; }
+
+        function escapeHtml(s) {
+            return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                .replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/\n/g, ' ');
+        }
+        function showToast(text, ms = 2500) {
+            toastEl.textContent = text;
+            toastEl.classList.add('show');
+            clearTimeout(showToast._t);
+            showToast._t = setTimeout(() => toastEl.classList.remove('show'), ms);
+        }
+        function plural(n, one, few, many) {
+            const m10 = n % 10, m100 = n % 100;
+            if (m100 >= 11 && m100 <= 14) return many;
+            if (m10 === 1) return one;
+            if (m10 >= 2 && m10 <= 4) return few;
+            return many;
+        }
+        function applyTheme() { document.body.dataset.theme = state.settings.theme || 'purple'; }
+
+        // ============================================================
+        // 7. Расчёты
+        // ============================================================
+        function calcStrideMeters(mode) {
+            const s = state.settings;
+            return (s.height || 170) * STRIDE_COEF[mode][s.gender];
+        }
+        function calcDistance(steps, mode) { return (steps * calcStrideMeters(mode)) / 1000; }
+        function calcCalories(steps, mode) {
+            const s = state.settings;
+            return Math.round(calcDistance(steps, mode) * (s.weight || 70) * KCAL_COEF[mode][s.gender] * PACE_FACTOR[s.pace]);
+        }
+        function todayCalories() {
+            const d = todayDay();
+            return calcCalories(d.walk || 0, 'walk') + calcCalories(d.run || 0, 'run');
+        }
+        function todayDistance() {
+            const d = todayDay();
+            return calcDistance(d.walk || 0, 'walk') + calcDistance(d.run || 0, 'run');
+        }
+        function getMetric(s, metric) {
+            switch (metric) {
+                case 'totalSteps': return s.totalWalk + s.totalRun;
+                case 'totalRun': return s.totalRun;
+                case 'totalCalories': return s.totalCalories;
+                case 'totalDistance': return s.totalDistance;
+                case 'goalDays': return s.goalDaysTotal;
+                case 'streak': return s.streak;
+            }
+            return 0;
+        }
+        function trimHistory() {
+            const cutoff = new Date();
+            cutoff.setDate(cutoff.getDate() - HISTORY_DAYS);
+            const cutoffKey = dateKey(cutoff);
+            for (const k of Object.keys(state.history)) if (k < cutoffKey) delete state.history[k];
+        }
+
+        // ============================================================
+        // 8. Сохранение шагомера
+        // ============================================================
+        async function loadProgress() {
+            try {
+                const stored = await vkBridge.send('VKWebAppStorageGet', { keys: [STATE_KEY] });
+                const found = stored.keys?.find(k => k.key === STATE_KEY);
+                if (found && found.value) {
+                    const parsed = JSON.parse(found.value);
+                    if (parsed && typeof parsed === 'object') {
+                        state.totalWalk = parsed.totalWalk || parsed.total || 0;
+                        state.totalRun = parsed.totalRun || 0;
+                        state.totalDistance = parsed.totalDistance || 0;
+                        state.totalCalories = parsed.totalCalories || 0;
+                        state.history = parsed.history || {};
+                        state.settings = { ...DEFAULT_SETTINGS, ...(parsed.settings || {}) };
+                        state.unlocked = Array.isArray(parsed.unlocked) ? parsed.unlocked : [];
+                        state.goalDaysTotal = parsed.goalDaysTotal || 0;
+                        state.streak = parsed.streak || 0;
+                        state.lastGoalDate = parsed.lastGoalDate || null;
+                        for (const k of Object.keys(state.history)) {
+                            if (typeof state.history[k] === 'number') {
+                                state.history[k] = { walk: state.history[k], run: 0 };
+                            }
+                        }
+                    }
+                }
+            } catch (e) { console.warn('loadProgress:', e); }
+            applyTheme();
+            checkNewAchievements(false);
+            checkGoalAchievement(false);
+            updateStepUI();
+        }
+
+        async function saveProgress() {
+            trimHistory();
+            try {
+                await vkBridge.send('VKWebAppStorageSet', { key: STATE_KEY, value: JSON.stringify(state) });
+            } catch (e) { console.warn('saveProgress:', e); }
+        }
+        function scheduleStepSave() {
+            if (stepSaveTimer) clearTimeout(stepSaveTimer);
+            stepSaveTimer = setTimeout(() => { saveProgress(); stepSaveTimer = null; }, 1500);
+        }
+
+        // ============================================================
+        // 9. Шаги
+        // ============================================================
+        function addSteps(count, mode) {
+            const key = todayKey();
+            const day = state.history[key] || { walk: 0, run: 0 };
+            day[mode] = (day[mode] || 0) + count;
+            state.history[key] = day;
+            if (mode === 'walk') state.totalWalk += count; else state.totalRun += count;
+
+            const strideKm = calcStrideMeters(mode) / 1000;
+            const kcalPerStep = strideKm * (state.settings.weight || 70) * KCAL_COEF[mode][state.settings.gender] * PACE_FACTOR[state.settings.pace];
+            state.totalDistance += count * strideKm;
+            state.totalCalories += count * kcalPerStep;
+        }
+
+        function checkGoalAchievement(showCongrats = true) {
+            const goal = state.settings.dailyGoal;
+            const d = todayDay();
+            const todayTotal = (d.walk || 0) + (d.run || 0);
+            if (todayTotal >= goal && state.lastGoalDate !== todayKey()) {
+                const yesterday = dateKey(new Date(Date.now() - 86400000));
+                if (state.lastGoalDate === yesterday) state.streak = (state.streak || 0) + 1;
+                else state.streak = 1;
+                state.lastGoalDate = todayKey();
+                state.goalDaysTotal = (state.goalDaysTotal || 0) + 1;
+                if (showCongrats) {
+                    if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+                    showToast(`🎯 Цель дня достигнута! Серия: ${state.streak} 🔥`);
+                }
+                scheduleStepSave();
+            }
+        }
+
+        function checkNewAchievements(showToasts = true) {
+            const newly = [];
+            for (const a of ACHIEVEMENTS) {
+                if (state.unlocked.includes(a.id)) continue;
+                if (getMetric(state, a.metric) >= a.target) {
+                    state.unlocked.push(a.id);
+                    newly.push(a);
+                }
+            }
+            if (newly.length) {
+                scheduleStepSave();
+                if (showToasts) {
+                    newly.forEach((a, i) => {
+                        setTimeout(() => {
+                            showToast(`${a.icon} ${a.name} — награда получена!`);
+                            if (navigator.vibrate) navigator.vibrate(80);
+                        }, i * 500);
+                    });
+                }
+                if ($('tab-achievements').classList.contains('active')) renderAchievements();
+            }
+        }
+
+        // ============================================================
+        // 10. UI шагомера
+        // ============================================================
+        function updateStepUI() {
+            const d = todayDay();
+            const todayTotal = (d.walk || 0) + (d.run || 0);
+            todayStepsEl.textContent = todayTotal;
+            totalStepsEl.textContent = formatNum(totalSteps());
+            todayCaloriesEl.textContent = todayCalories();
+            todayDistanceEl.textContent = todayDistance().toFixed(2);
+            modeBreakdownEl.textContent = `🚶 ${formatNum(d.walk || 0)} · 🏃 ${formatNum(d.run || 0)}`;
+            const s = state.settings;
+            const g = s.gender === 'female' ? 'Ж' : 'М';
+            profileLineEl.textContent = `${s.weight} кг · ${s.height} см · ${g} · ${PACE_LABEL[s.pace]} · ✏️`;
+            updateGoal(todayTotal);
+            updateStatusBadge();
+        }
+
+        function updateGoal(today) {
+            const goal = state.settings.dailyGoal || 10000;
+            const percent = Math.min(100, Math.round((today / goal) * 100));
+            goalLabelEl.textContent = `Цель: ${formatNum(goal)}`;
+            goalPercentEl.textContent = `${percent}%`;
+            goalFillEl.style.width = percent + '%';
+            if (today >= goal) {
+                goalFillEl.classList.add('complete');
+                goalCompleteTextEl.textContent = '🎉 Цель достигнута!';
+            } else {
+                goalFillEl.classList.remove('complete');
+                goalCompleteTextEl.textContent = `Осталось ${formatNum(goal - today)} шагов`;
+            }
+        }
+
+        function updateStatusBadge() {
+            const total = totalSteps();
+            let current = STATUSES[0];
+            for (const s of STATUSES) if (total >= s.minSteps) current = s;
+            statusBadgeEl.textContent = current.name;
+        }
+
+        function formatMetricUnit(metric) {
+            return { totalSteps: 'шагов', totalRun: 'шагов бега', totalCalories: 'ккал', totalDistance: 'км', goalDays: 'дней', streak: 'дней' }[metric] || '';
+        }
+        function formatMetricValue(metric, v) {
+            if (metric === 'totalDistance') return v.toFixed(v < 10 ? 1 : 0);
+            return formatNum(v);
+        }
+
+        function renderAchievements() {
+            const cats = {};
+            ACHIEVEMENTS.forEach(a => { (cats[a.cat] = cats[a.cat] || []).push(a); });
+            let html = '';
+            for (const [cat, list] of Object.entries(cats)) {
+                const got = list.filter(a => state.unlocked.includes(a.id)).length;
+                html += `<div class="ach-cat"><div class="ach-cat-title">${cat} <span style="opacity:0.6; font-weight:400">${got}/${list.length}</span></div><div class="ach-grid">`;
+                list.forEach(a => {
+                    const unlocked = state.unlocked.includes(a.id);
+                    const value = getMetric(state, a.metric);
+                    const progress = Math.min(100, Math.round(value / a.target * 100));
+                    const tooltip = `${a.name} — ${formatMetricValue(a.metric, value)} / ${formatMetricValue(a.metric, a.target)} ${formatMetricUnit(a.metric)}`;
+                    html += `<div class="ach-card ${unlocked ? 'unlocked' : 'locked'} rarity-${a.rarity}" title="${tooltip}">
+                        <div class="ach-icon">${a.icon}</div>
+                        <div class="ach-name">${a.name}</div>
+                        <div class="ach-progress"><div class="ach-progress-fill" style="width:${progress}%"></div></div>
+                    </div>`;
+                });
+                html += `</div></div>`;
+            }
+            achievementsContainer.innerHTML = html;
+        }
+
+        function renderWeeklyChart() {
+            const days = [];
+            const dayNames = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const key = dateKey(d);
+                const day = state.history[key] || { walk: 0, run: 0 };
+                days.push({ key, label: i === 0 ? 'Сегодня' : dayNames[d.getDay()], walk: day.walk || 0, run: day.run || 0, total: (day.walk || 0) + (day.run || 0) });
+            }
+            const max = Math.max(...days.map(d => d.total), 1);
+            weeklyChartEl.innerHTML = days.map(d => {
+                const h = (d.total / max) * 100;
+                const cls = d.key === todayKey() ? 'chart-bar today' : 'chart-bar';
+                return `<div class="chart-bar-wrapper" title="🚶 ${d.walk} · 🏃 ${d.run}">
+                    <div class="chart-value">${d.total}</div>
+                    <div class="${cls}" style="height:${h}%"></div>
+                    <div class="chart-label">${d.label}</div>
+                </div>`;
+            }).join('');
+            const weekWalk = days.reduce((s, d) => s + d.walk, 0);
+            const weekRun = days.reduce((s, d) => s + d.run, 0);
+            weekTotalEl.textContent = formatNum(weekWalk + weekRun);
+            weekCaloriesEl.textContent = formatNum(calcCalories(weekWalk, 'walk') + calcCalories(weekRun, 'run'));
+            weekDistanceEl.textContent = (calcDistance(weekWalk, 'walk') + calcDistance(weekRun, 'run')).toFixed(1);
+            weekBreakdownEl.textContent = `🚶 ${formatNum(weekWalk)} · 🏃 ${formatNum(weekRun)}`;
+        }
+
+        function setMode(mode) {
+            state.settings.mode = mode;
+            document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+            scheduleStepSave();
+        }
+
+        // ============================================================
+        // 11. Шагомер
+        // ============================================================
+        async function toggleTracking() {
+            if (isTracking) return stopTracking();
+            return startTracking();
+        }
+
+        async function startTracking() {
+            startBtn.disabled = true;
+            statusEl.textContent = 'Запрос доступа к датчикам...';
+            try {
+                await vkBridge.send('VKWebAppAccelerometerStart', { refresh_rate: 200 });
+                isTracking = true;
+                startBtn.textContent = 'Стоп';
+                startBtn.disabled = false;
+                statusEl.textContent = `Режим: ${state.settings.mode === 'run' ? 'бег 🏃' : 'ходьба 🚶'}`;
+                unsubscribeAccel = vkBridge.subscribe(handleAccelerometerData);
+            } catch (error) {
+                console.error('Ошибка акселерометра:', error);
+                statusEl.textContent = 'Датчик не запустился. Откройте на телефоне в приложении VK.';
+                startBtn.disabled = false;
+            }
+        }
+
+        async function stopTracking() {
+            try { await vkBridge.send('VKWebAppAccelerometerStop'); } catch (e) {}
+            if (unsubscribeAccel) { unsubscribeAccel(); unsubscribeAccel = null; }
+            isTracking = false;
+            startBtn.textContent = 'Старт';
+            statusEl.textContent = 'Остановлено';
+            saveProgress();
+        }
+
+        function handleAccelerometerData(event) {
+            if (!isTracking || event.detail.type !== 'VKWebAppAccelerometerChanged') return;
+            const { x, y, z } = event.detail.data;
+            const accel = Math.sqrt(x * x + y * y + z * z);
+            const mode = state.settings.mode;
+            const now = Date.now();
+            if (accel > STEP_THRESHOLD[mode] && now - lastStepTime > MIN_STEP_INTERVAL[mode]) {
+                addSteps(1, mode);
+                lastStepTime = now;
+                updateStepUI();
+                scheduleStepSave();
+                checkGoalAchievement(true);
+                checkNewAchievements(true);
+                if (navigator.vibrate) navigator.vibrate(40);
+                statusEl.textContent = `${mode === 'run' ? '🏃' : '🚶'} Шаг! (${accel.toFixed(1)} м/с²)`;
+            }
+        }
+
+        // ============================================================
+        // 12. Реклама (безопасно — работает только если включена)
+        // ============================================================
+        async function showSystemBanner() {
+            try {
+                await vkBridge.send('VKWebAppShowBannerAd', { height_type: 'auto', orientation: 'vertical' });
+            } catch (e) { /* реклама не настроена — молча пропускаем */ }
+        }
+
+        async function showRewardedAd() {
+            try {
+                const check = await vkBridge.send('VKWebAppCheckNativeAds', { ad_format: 'reward' });
+                if (!check.result) {
+                    return showToast('🎁 Реклама пока не настроена в приложении');
+                }
+                const ad = await vkBridge.send('VKWebAppShowNativeAds', { ad_format: 'reward' });
+                if (ad.result) {
+                    addSteps(REWARD_STEPS, state.settings.mode);
+                    updateStepUI();
+                    saveProgress();
+                    checkGoalAchievement(true);
+                    checkNewAchievements(true);
+                    showToast(`🎁 Спасибо! +${REWARD_STEPS} шагов`);
+                } else {
+                    showToast('Просмотр прерван. Бонус не начислен.');
+                }
+            } catch (e) {
+                console.error(e);
+                showToast('🎁 Реклама пока недоступна');
+            }
+        }
+
+        async function showInterstitialAd() {
+            try {
+                const check = await vkBridge.send('VKWebAppCheckNativeAds', { ad_format: 'interstitial' });
+                if (check.result) await vkBridge.send('VKWebAppShowNativeAds', { ad_format: 'interstitial' });
+            } catch (e) {}
+        }
+
+        // ============================================================
+        // 13. Турнир
+        // ============================================================
+        async function showLeaderboard() {
+            try {
+                await vkBridge.send('VKWebAppShowLeaderBoardBox', { user_result: totalSteps() });
+            } catch (error) {
+                console.error(error);
+                showToast('🏆 Включите «Таблицу результатов» в настройках приложения на dev.vk.com');
+            }
+        }
+
+        // ============================================================
+        // 14. Настройки
+        // ============================================================
+        function setRadioGroup(groupId, value) {
+            const group = $(groupId);
+            if (!group) return;
+            group.querySelectorAll('label').forEach(lbl => {
+                const isChecked = lbl.dataset.value === value;
+                lbl.classList.toggle('checked', isChecked);
+                const input = lbl.querySelector('input');
+                if (input) input.checked = isChecked;
+            });
+        }
+        function openSettings() {
+            const s = state.settings;
+            setRadioGroup('genderGroup', s.gender);
+            setRadioGroup('paceGroup', s.pace);
+            setRadioGroup('themeGroup', s.theme || 'purple');
+            $('inputHeight').value = s.height;
+            $('inputWeight').value = s.weight;
+            $('inputGoal').value = s.dailyGoal || 10000;
+            $('settingsModal').classList.add('active');
+        }
+        function closeSettings() { $('settingsModal').classList.remove('active'); }
+        function saveSettings() {
+            const gender = document.querySelector('#genderGroup input:checked')?.value || 'male';
+            const pace = document.querySelector('#paceGroup input:checked')?.value || 'medium';
+            const theme = document.querySelector('#themeGroup input:checked')?.value || 'purple';
+            let height = parseInt($('inputHeight').value, 10) || 170;
+            let weight = parseInt($('inputWeight').value, 10) || 70;
+            let dailyGoal = parseInt($('inputGoal').value, 10) || 10000;
+            height = Math.max(100, Math.min(250, height));
+            weight = Math.max(30, Math.min(300, weight));
+            dailyGoal = Math.max(1000, Math.min(50000, dailyGoal));
+            state.settings = { ...state.settings, gender, height, weight, pace, dailyGoal, theme };
+            applyTheme();
+            saveProgress();
+            updateStepUI();
+            closeSettings();
+        }
+        document.querySelectorAll('.radio-group label').forEach(lbl => {
+            lbl.addEventListener('click', () => {
+                const group = lbl.parentElement;
+                group.querySelectorAll('label').forEach(l => l.classList.remove('checked'));
+                lbl.classList.add('checked');
+                lbl.querySelector('input').checked = true;
+            });
+        });
+
+        // ============================================================
+        // 15. Хранилище заметок
+        // ============================================================
+        async function loadNotesIndex() {
+            try {
+                const r = await vkBridge.send('VKWebAppStorageGet', { keys: [INDEX_KEY] });
+                const found = r.keys?.find(k => k.key === INDEX_KEY);
+                if (found && found.value) {
+                    const parsed = JSON.parse(found.value);
+                    return Array.isArray(parsed.ids) ? parsed.ids : [];
+                }
+            } catch (e) { console.warn('loadNotesIndex:', e); }
+            return [];
+        }
+        async function saveNotesIndex(ids) {
+            await vkBridge.send('VKWebAppStorageSet', { key: INDEX_KEY, value: JSON.stringify({ ids }) });
+        }
+        async function loadNotesByIds(ids) {
+            if (!ids.length) return {};
+            try {
+                const keys = ids.map(id => NOTE_PREFIX + id);
+                const r = await vkBridge.send('VKWebAppStorageGet', { keys });
+                const result = {};
+                (r.keys || []).forEach(k => {
+                    if (!k.value) return;
+                    try {
+                        const note = JSON.parse(k.value);
+                        if (note && note.id) result[note.id] = note;
+                    } catch (e) { console.warn('bad note JSON:', k.key); }
+                });
+                return result;
+            } catch (e) { console.warn('loadNotesByIds:', e); return {}; }
+        }
+        async function saveNote(note) {
+            const payload = JSON.stringify(note);
+            const bytes = new Blob([payload]).size;
+            if (bytes > MAX_NOTE_BYTES) throw new Error(`Слишком большая заметка: ${bytes}/${MAX_NOTE_BYTES} байт`);
+            await vkBridge.send('VKWebAppStorageSet', { key: NOTE_PREFIX + note.id, value: payload });
+        }
+        async function removeNoteById(id) {
+            await vkBridge.send('VKWebAppStorageSet', { key: NOTE_PREFIX + id, value: '' });
+            const ids = (await loadNotesIndex()).filter(x => x !== id);
+            await saveNotesIndex(ids);
+        }
+        async function loadAllNotes() {
+            const ids = await loadNotesIndex();
+            notes = await loadNotesByIds(ids);
+            renderNotesList();
+        }
+
+        // ============================================================
+        // 16. Заметки
+        // ============================================================
+        function genNoteId() { return 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+        function noteColor(id) { const p = PALETTE.find(x => x.id === id); return p ? p.color : '#fff'; }
+        function formatNoteDate(ts) {
+            const d = new Date(ts);
+            const now = new Date();
+            if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+            return d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' });
+        }
+        function parseTags(str) { return str.split(',').map(t => t.trim()).filter(Boolean); }
+        function countWords(text) { const t = (text || '').trim(); return t ? t.split(/\s+/).length : 0; }
+
+        function renderNotesList() {
+            const q = searchInput.value.trim().toLowerCase();
+            let list = Object.values(notes);
+            if (activeTagFilter) list = list.filter(n => (n.tags || []).includes(activeTagFilter));
+            if (q) {
+                list = list.filter(n => {
+                    if ((n.title || '').toLowerCase().includes(q)) return true;
+                    if ((n.body || '').toLowerCase().includes(q)) return true;
+                    if ((n.tags || []).some(t => t.toLowerCase().includes(q))) return true;
+                    return false;
+                });
+            }
+            list.sort((a, b) => {
+                if (!!b.pinned !== !!a.pinned) return b.pinned ? 1 : -1;
+                return (b.updated || 0) - (a.updated || 0);
+            });
+
+            notesListEl.innerHTML = '';
+            list.forEach(n => {
+                const card = document.createElement('div');
+                card.className = 'note-card' + (n.pinned ? ' pinned' : '');
+                card.style.setProperty('--note-color', noteColor(n.color));
+                card.onclick = () => openNoteEditor(n.id);
+                const title = n.title ? escapeHtml(n.title) : '<i style="opacity:0.5">Без названия</i>';
+                const body = n.body ? escapeHtml(n.body.slice(0, 200)) : '';
+                const tags = (n.tags || []).map(t => `<span class="note-tag">#${escapeHtml(t)}</span>`).join('');
+                card.innerHTML = `
+                    <div class="note-title">${title}${n.pinned ? ' <span class="pin">📌</span>' : ''}</div>
+                    ${body ? `<div class="note-preview">${body}</div>` : ''}
+                    ${tags ? `<div class="note-tags">${tags}</div>` : ''}
+                    <div class="note-date">${formatNoteDate(n.updated || n.created || Date.now())}</div>
+                `;
+                notesListEl.appendChild(card);
+            });
+            noteCountEl.textContent = Object.keys(notes).length;
+            emptyStateEl.style.display = list.length === 0 ? 'flex' : 'none';
+            renderTagFilters();
+        }
+
+        function renderTagFilters() {
+            const allTags = new Set();
+            Object.values(notes).forEach(n => (n.tags || []).forEach(t => allTags.add(t)));
+            const tags = [...allTags].sort();
+            tagFiltersEl.innerHTML = '';
+            if (!tags.length) return;
+            if (activeTagFilter && !allTags.has(activeTagFilter)) activeTagFilter = null;
+            tags.forEach(tag => {
+                const chip = document.createElement('span');
+                chip.className = 'tag-chip' + (tag === activeTagFilter ? ' active' : '');
+                chip.textContent = '#' + tag;
+                chip.onclick = () => {
+                    activeTagFilter = activeTagFilter === tag ? null : tag;
+                    renderNotesList();
+                };
+                tagFiltersEl.appendChild(chip);
+            });
+        }
+
+        function buildExportText() {
+            const list = Object.values(notes).sort((a, b) => {
+                if (!!b.pinned !== !!a.pinned) return b.pinned ? 1 : -1;
+                return (b.updated || 0) - (a.updated || 0);
+            });
+            if (!list.length) return '';
+            const parts = [`📝 Мои заметки (${list.length})`, '='.repeat(30), ''];
+            list.forEach((n, i) => {
+                parts.push(`${i + 1}. ${n.title || 'Без названия'}${n.pinned ? ' 📌' : ''}`);
+                if (n.tags && n.tags.length) parts.push(`   Теги: ${n.tags.map(t => '#' + t).join(', ')}`);
+                parts.push(`   Дата: ${new Date(n.updated || n.created).toLocaleString('ru-RU')}`);
+                if (n.body) {
+                    parts.push('');
+                    n.body.split('\n').forEach(line => parts.push('   ' + line));
+                }
+                parts.push('', '-'.repeat(30), '');
+            });
+            return parts.join('\n');
+        }
+
+        async function exportAllNotes() {
+            const text = buildExportText();
+            if (!text) return showToast('Нечего экспортировать');
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(text);
+                } else {
+                    const ta = document.createElement('textarea');
+                    ta.value = text;
+                    ta.style.position = 'fixed';
+                    ta.style.opacity = '0';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                }
+                showToast(`📤 Скопировано (${Object.keys(notes).length} заметок)`);
+            } catch (e) {
+                console.error('export error:', e);
+                showToast('Не удалось скопировать');
+            }
+        }
+
+        function createNote() {
+            const id = genNoteId();
+            const now = Date.now();
+            notes[id] = { id, title: '', body: '', tags: [], color: 'yellow', pinned: false, created: now, updated: now };
+            isNewNote = true;
+            openNoteEditor(id);
+        }
+
+        function openNoteEditor(id) {
+            const note = notes[id];
+            if (!note) return;
+            currentNote = note;
+            isNewNote = false;
+            editTitle.value = note.title || '';
+            editBody.value = note.body || '';
+            editTags.value = (note.tags || []).join(', ');
+            updateBodyCounter();
+            renderColorPicker();
+            renderPinToggle();
+            setSaveStatus('');
+            notesEditorOverlay.classList.add('active');
+            setTimeout(() => editTitle.focus(), 100);
+        }
+
+        function closeNoteEditor() {
+            if (currentNote && !currentNote.title && !currentNote.body && !(currentNote.tags || []).length) {
+                if (isNewNote) delete notes[currentNote.id];
+            } else if (currentNote) {
+                saveCurrentNote(true);
+            }
+            currentNote = null;
+            isNewNote = false;
+            notesEditorOverlay.classList.remove('active');
+            renderNotesList();
+        }
+
+        function renderColorPicker() {
+            colorPickerEl.innerHTML = '';
+            PALETTE.forEach(p => {
+                const dot = document.createElement('div');
+                dot.className = 'color-dot' + (currentNote.color === p.id ? ' active' : '');
+                dot.style.background = p.color;
+                dot.onclick = () => {
+                    currentNote.color = p.id;
+                    renderColorPicker();
+                    scheduleNoteSave();
+                };
+                colorPickerEl.appendChild(dot);
+            });
+        }
+        function renderPinToggle() {
+            const active = !!currentNote.pinned;
+            pinToggleEl.classList.toggle('active', active);
+            pinLabelEl.textContent = active ? 'Закреплено' : 'Закрепить';
+        }
+        function togglePin() {
+            if (!currentNote) return;
+            currentNote.pinned = !currentNote.pinned;
+            renderPinToggle();
+            scheduleNoteSave();
+        }
+        function updateBodyCounter() {
+            const text = editBody.value;
+            const w = countWords(text);
+            const c = text.length;
+            bodyCounterEl.textContent = `${w} ${plural(w, 'слово', 'слова', 'слов')} · ${c} ${plural(c, 'символ', 'символа', 'символов')}`;
+        }
+        function onBodyInput() { updateBodyCounter(); scheduleNoteSave(); }
+
+        function scheduleNoteSave() {
+            if (!currentNote) return;
+            setSaveStatus('💾 Сохранение...', 'saving');
+            clearTimeout(noteSaveTimer);
+            noteSaveTimer = setTimeout(() => saveCurrentNote(false), AUTOSAVE_DELAY);
+        }
+
+        async function saveCurrentNote(immediate = false) {
+            if (!currentNote) return;
+            if (noteSaveInFlight && !immediate) return;
+            currentNote.title = editTitle.value.trim();
+            currentNote.body = editBody.value;
+            currentNote.tags = parseTags(editTags.value);
+            currentNote.updated = Date.now();
+            noteSaveInFlight = true;
+            try {
+                await saveNote(currentNote);
+                const ids = await loadNotesIndex();
+                if (!ids.includes(currentNote.id)) {
+                    ids.push(currentNote.id);
+                    await saveNotesIndex(ids);
+                }
+                setSaveStatus('✓ Сохранено', '');
+            } catch (e) {
+                console.error('saveCurrentNote:', e);
+                setSaveStatus('⚠️ ' + (e.message || 'Ошибка'), 'error');
+                showToast(e.message || 'Не удалось сохранить');
+            } finally {
+                noteSaveInFlight = false;
+            }
+        }
+
+        function setSaveStatus(text, cls) {
+            saveStatusEl.textContent = text;
+            saveStatusEl.className = 'save-status ' + (cls || '');
+        }
+
+        async function deleteCurrentNote() {
+            if (!currentNote) return;
+            if (!confirm('Удалить эту заметку?')) return;
+            const id = currentNote.id;
+            try {
+                await removeNoteById(id);
+                delete notes[id];
+                currentNote = null;
+                showToast('🗑️ Заметка удалена');
+                notesEditorOverlay.classList.remove('active');
+                renderNotesList();
+            } catch (e) {
+                console.error(e);
+                showToast('Не удалось удалить');
+            }
+        }
+
+        // ============================================================
+        // 17. Вкладки
+        // ============================================================
+        function switchTab(name) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            const tabEl = document.querySelector(`.tab[data-tab="${name}"]`);
+            if (tabEl) tabEl.classList.add('active');
+            const contentEl = $('tab-' + name);
+            if (contentEl) contentEl.classList.add('active');
+
+            if (name === 'tournament') showInterstitialAd();
+            if (name === 'stats') renderWeeklyChart();
+            if (name === 'achievements') renderAchievements();
+            if (name === 'notes') renderNotesList();
+        }
+
+        // ============================================================
+        // 18. Инициализация
+        // ============================================================
+        window.addEventListener('load', async () => {
+            await loadProgress();
+            await loadAllNotes();
+            document.querySelectorAll('.mode-btn').forEach(b =>
+                b.classList.toggle('active', b.dataset.mode === state.settings.mode)
+            );
+            showSystemBanner();
+        });
+
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                updateStepUI();
+                if ($('tab-stats').classList.contains('active')) renderWeeklyChart();
+            }
+        });
+
+        window.addEventListener('beforeunload', () => {
+            if (isTracking) vkBridge.send('VKWebAppAccelerometerStop');
+            saveProgress();
+            if (currentNote) {
+                currentNote.title = editTitle.value.trim();
+                currentNote.body = editBody.value;
+                currentNote.tags = parseTags(editTags.value);
+                currentNote.updated = Date.now();
+                saveNote(currentNote).catch(() => {});
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                if (currentNote) saveCurrentNote(true);
+            }
+            if (e.key === 'Escape') {
+                if (currentNote) closeNoteEditor();
+                else if ($('settingsModal').classList.contains('active')) closeSettings();
+            }
+        });
+    </script>
+</body>
+</html>
